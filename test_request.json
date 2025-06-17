@@ -1,0 +1,42 @@
+{
+  "user_name": "test_user",
+  "scenario_name": "test_scenario",
+  "mode": "Predict Simulation Mode",
+  "decision_vars": [
+    {
+      "year": 2026,
+      "planting_trees_amount": 100,
+      "house_migration_amount": 50,
+      "dam_levee_construction_cost": 1.0,
+      "paddy_dam_construction_cost": 0.5,
+      "capacity_building_cost": 0.3,
+      "transportation_invest": 0.2,
+      "agricultural_RnD_cost": 0.4,
+      "cp_climate_params": 4.5
+    }
+  ],
+  "num_simulations": 1,
+  "current_year_index_seq": {
+    "temp": 15.0,
+    "precip": 1700.0,
+    "municipal_demand": 100.0,
+    "available_water": 3000.0,
+    "crop_yield": 5000.0,
+    "hot_days": 30.0,
+    "extreme_precip_freq": 0.1,
+    "ecosystem_level": 100.0,
+    "levee_level": 0.0,
+    "high_temp_tolerance_level": 0.0,
+    "forest_area": 0.0,
+    "planting_history": {},
+    "urban_level": 100.0,
+    "resident_capacity": 0.0,
+    "transportation_level": 0.0,
+    "levee_investment_total": 0.0,
+    "RnD_investment_total": 0.0,
+    "risky_house_total": 10000.0,
+    "non_risky_house_total": 0.0,
+    "resident_burden": 0.0,
+    "biodiversity_level": 100.0
+  }
+}
