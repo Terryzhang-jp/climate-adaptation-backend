@@ -18,16 +18,20 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # CORS settings
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",  # Local development
+        "https://climate-adaptation-frontend3.vercel.app",  # Production frontend
+        "https://*.vercel.app"  # All Vercel preview deployments
+    ]
     CORS_CREDENTIALS: bool = True
-    CORS_METHODS: list[str] = ["*"]
+    CORS_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     CORS_HEADERS: list[str] = ["*"]
-    
+
     # Data directory settings
     DATA_DIR: str = "data"
-    
+
     # Frontend URL for production CORS
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://climate-adaptation-frontend3.vercel.app"
     
     class Config:
         env_file = ".env"
