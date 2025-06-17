@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python start.py",
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level info --access-log",
     "healthcheckPath": "/ping",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
