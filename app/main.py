@@ -45,6 +45,23 @@ app.include_router(api_router, prefix="/api/v1")
 app.include_router(api_router)
 
 
+# Root level health check for Railway
+@app.get("/ping")
+async def root_ping():
+    """Root level ping for Railway health check."""
+    return {"message": "pong", "status": "healthy"}
+
+
+@app.get("/health")
+async def root_health():
+    """Root level health check for Railway."""
+    return {
+        "status": "healthy",
+        "timestamp": pd.Timestamp.utcnow().isoformat(),
+        "version": "1.0.0"
+    }
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """
