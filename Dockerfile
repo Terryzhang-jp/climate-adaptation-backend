@@ -25,6 +25,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY app/ ./app/
 COPY data/ ./data/
+COPY start.sh ./start.sh
+
+# Make start script executable
+RUN chmod +x ./start.sh
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app && \
@@ -39,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')" || exit 1
 
 # Run the application
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info --access-log"]
+CMD ["./start.sh"]
