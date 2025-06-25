@@ -1,0 +1,49 @@
+steps:
+  # 构建步骤
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/climate-adaptation-backend:$COMMIT_SHA'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    
+  # 推送到 Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/climate-adaptation-backend:$COMMIT_SHA'
+    
+  # 部署到 Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'climate-adaptation-backend'
+      - '--image'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/climate-adaptation-backend:$COMMIT_SHA'
+      - '--region'
+      - 'asia-northeast1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8000'
+      - '--cpu'
+      - '2'
+      - '--memory'
+      - '4Gi'
+      - '--concurrency'
+      - '10'
+      - '--min-instances'
+      - '1'
+      - '--max-instances'
+      - '8'
+
+images:
+  - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/climate-adaptation-backend:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
