@@ -7,6 +7,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import axios from "axios";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import ModelExplanationPage from "./ModelExplanationPage"; // 模型解释页面
+import ThankYouPage from "./ThankYouPage"; // Thank You页面
 
 // ※ chart.js v4 の設定
 import {
@@ -308,6 +309,7 @@ function AppRouter() {
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/formula" element={<ModelExplanationPage />} />
+        <Route path="/thank-you" element={<ThankYouPage />} />
       </Routes>
     </Router>
   );
@@ -408,6 +410,38 @@ function App() {
   const wsLogRef = useRef(null);
   const [logQueue, setLogQueue] = useState([]); // 前端log缓存队列
   const [logStatus, setLogStatus] = useState('disconnected'); // WebSocket连接状态
+
+
+  // 结束实验功能
+  const handleEndExperiment = async () => {
+    try {
+      // 发送结束实验日志到队列
+      addLogToQueue({
+        type: "EndExperiment",
+        name: userName,
+        timestamp: new Date().toISOString()
+      });
+
+      // 立即发送所有队列中的日志
+      await sendLogQueue();
+
+      // 发送用户行为数据到后端
+      const allUserLogs = [...logQueue];
+      if (allUserLogs.length > 0) {
+        await axios.post(`${BACKEND_URL}/experiment/end`, {
+          user_name: userName,
+          logs: allUserLogs
+        });
+      }
+
+      // 跳转到Thank You页面
+      window.location.href = `/thank-you?user=${encodeURIComponent(userName)}`;
+    } catch (error) {
+      console.error('结束实验失败:', error);
+      alert('实验结束时发生错误，请重试');
+    }
+  };
+
 
   // 添加log到队列的函数
   const addLogToQueue = (logData) => {
@@ -1006,6 +1040,19 @@ function App() {
   // プロット属性変更時
   const handlePlotAttributeChange = (event) => {
     setSelectedPlotAttribute(event.target.value);
+
+    // --- 绘图属性选择ログをWebSocketで送信 ---
+    if (wsLogRef.current && wsLogRef.current.readyState === WebSocket.OPEN) {
+      wsLogRef.current.send(JSON.stringify({
+        user_name: userName,
+        mode: chartPredictMode,
+        type: "PlotAttribute",
+        name: event.target.value,
+        cycle: currentCycle,
+        timestamp: new Date().toISOString()
+      }));
+    }
+    console.log(`🎨 绘图属性选择: ${event.target.value}`);
   };
 
   const handleOpenSettings = () => {
@@ -1216,7 +1263,16 @@ function App() {
         </Box>
 
         {/* Model Descriptionボタン */}
-        <Button variant="outlined" onClick={() => setOpenFormulaModal(true)}>
+        <Button variant="outlined" onClick={() => {
+          setOpenFormulaModal(true);
+          // --- 模型说明打开ログを队列に追加 ---
+          addLogToQueue({
+            type: "ModelExplanation",
+            name: "Open",
+            action: "open_model_description"
+          });
+          console.log(`📖 模型说明页面打开`);
+        }}>
           Model Description
         </Button>
         
@@ -1245,20 +1301,34 @@ function App() {
           />
         </Box>
         
-        {/* {showResultButton && (
-        <Box sx={{ textAlign: 'center', mt: 0 }}>
+        {/* WebSocket状态指示灯 - 左上方 */}
+        <Box sx={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            sx={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: logStatus === 'connected' ? '#4caf50' : '#f44336',
+              boxShadow: logStatus === 'connected' ? '0 0 8px rgba(76, 175, 80, 0.6)' : '0 0 8px rgba(244, 67, 54, 0.6)',
+            }}
+          />
+          <Typography variant="caption" color="text.secondary">
+            WebSocket
+          </Typography>
+        </Box>
+
+        {/* 右上方按钮组 */}
+        <Box sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 1 }}>
           <Button
             variant="contained"
-            color="success"
-            size="large"
-            onClick={handleShowResult}
+            color="error"
+            size="small"
+            onClick={handleEndExperiment}
+            sx={{ fontSize: '0.75rem', px: 2 }}
           >
-            {t.buttons.viewResults}
+            {language === 'ja' ? '実験終了' : 'End Experiment'}
           </Button>
-        </Box>
-      )} */}
-        <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
-          <IconButton color="primary" onClick={handleOpenSettings} sx={{ ml: 1 }}>
+          <IconButton color="primary" onClick={handleOpenSettings}>
             <SettingsIcon />
           </IconButton>
         </Box>
@@ -1270,7 +1340,16 @@ function App() {
         <DialogContent>
           <ModelExplanationPage />
           <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Button variant="contained" onClick={() => setOpenFormulaModal(false)}>
+            <Button variant="contained" onClick={() => {
+              setOpenFormulaModal(false);
+              // --- 模型说明关闭ログを队列に追加 ---
+              addLogToQueue({
+                type: "ModelExplanation",
+                name: "Close",
+                action: "close_model_description"
+              });
+              console.log(`📖 模型说明页面关闭`);
+            }}>
               Close
             </Button>
           </Box>
@@ -1308,7 +1387,16 @@ function App() {
                 name="mode"
                 value="group"
                 checked={selectedMode === 'group'}
-                onChange={(e) => setSelectedMode(e.target.value)}
+                onChange={(e) => {
+                  setSelectedMode(e.target.value);
+                  // --- 流域选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "ModeSelect",
+                    name: e.target.value,
+                    action: "watershed_selection"
+                  });
+                  console.log(`🏞️ 流域选择: ${e.target.value}`);
+                }}
               />
               <label htmlFor="mode-group" style={{ marginLeft: 8 }}>
                 <Typography variant="body1">
@@ -1324,7 +1412,16 @@ function App() {
                 name="mode"
                 value="upstream"
                 checked={selectedMode === 'upstream'}
-                onChange={(e) => setSelectedMode(e.target.value)}
+                onChange={(e) => {
+                  setSelectedMode(e.target.value);
+                  // --- 流域选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "ModeSelect",
+                    name: e.target.value,
+                    action: "watershed_selection"
+                  });
+                  console.log(`🏞️ 流域选择: ${e.target.value}`);
+                }}
               />
               <label htmlFor="mode-upstream" style={{ marginLeft: 8 }}>
                 <Typography variant="body1">
@@ -1340,7 +1437,16 @@ function App() {
                 name="mode"
                 value="downstream"
                 checked={selectedMode === 'downstream'}
-                onChange={(e) => setSelectedMode(e.target.value)}
+                onChange={(e) => {
+                  setSelectedMode(e.target.value);
+                  // --- 流域选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "ModeSelect",
+                    name: e.target.value,
+                    action: "watershed_selection"
+                  });
+                  console.log(`🏞️ 流域选择: ${e.target.value}`);
+                }}
               />
               <label htmlFor="mode-downstream" style={{ marginLeft: 8 }}>
                 <Typography variant="body1">
@@ -1381,6 +1487,13 @@ function App() {
                 onChange={(e) => {
                   setChartPredictMode(e.target.value);
                   localStorage.setItem('chartPredictMode', e.target.value);
+                  // --- 预测模式选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "PredictModeSelect",
+                    name: e.target.value,
+                    action: "prediction_mode_change"
+                  });
+                  console.log(`🔮 预测模式选择: ${e.target.value}`);
                 }}
               />
               <label htmlFor="predict-best-worst" style={{ marginLeft: 8 }}>
@@ -1400,6 +1513,13 @@ function App() {
                 onChange={(e) => {
                   setChartPredictMode(e.target.value);
                   localStorage.setItem('chartPredictMode', e.target.value);
+                  // --- 预测模式选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "PredictModeSelect",
+                    name: e.target.value,
+                    action: "prediction_mode_change"
+                  });
+                  console.log(`🔮 预测模式选择: ${e.target.value}`);
                 }}
               />
               <label htmlFor="predict-monte-carlo" style={{ marginLeft: 8 }}>
@@ -1419,6 +1539,13 @@ function App() {
                 onChange={(e) => {
                   setChartPredictMode(e.target.value);
                   localStorage.setItem('chartPredictMode', e.target.value);
+                  // --- 预测模式选择ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "PredictModeSelect",
+                    name: e.target.value,
+                    action: "prediction_mode_change"
+                  });
+                  console.log(`🔮 预测模式选择: ${e.target.value}`);
                 }}
               />
               <label htmlFor="predict-none" style={{ marginLeft: 8 }}>
@@ -1447,6 +1574,13 @@ function App() {
                 onChange={(e) => {
                   setLanguage(e.target.value);
                   localStorage.setItem('language', e.target.value);
+                  // --- 语言切换ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "LanguageSelect",
+                    name: e.target.value,
+                    action: "language_change"
+                  });
+                  console.log(`🌐 语言切换: ${e.target.value}`);
                 }}
               />
               <label htmlFor="lang-ja" style={{ marginLeft: 8 }}>
@@ -1465,6 +1599,13 @@ function App() {
                 onChange={(e) => {
                   setLanguage(e.target.value);
                   localStorage.setItem('language', e.target.value);
+                  // --- 语言切换ログを队列に追加 ---
+                  addLogToQueue({
+                    type: "LanguageSelect",
+                    name: e.target.value,
+                    action: "language_change"
+                  });
+                  console.log(`🌐 语言切换: ${e.target.value}`);
                 }}
               />
               <label htmlFor="lang-en" style={{ marginLeft: 8 }}>
@@ -1717,7 +1858,21 @@ function App() {
                     <Select
                       value={selectedYearFilter}
                       label={t.scatter.yearFilter}
-                      onChange={(event) => setSelectedYearFilter(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedYearFilter(event.target.value);
+                        // --- 年份过滤ログをWebSocketで送信 ---
+                        if (wsLogRef.current && wsLogRef.current.readyState === WebSocket.OPEN) {
+                          wsLogRef.current.send(JSON.stringify({
+                            user_name: userName,
+                            mode: chartPredictMode,
+                            type: "YearFilter",
+                            name: event.target.value,
+                            cycle: currentCycle,
+                            timestamp: new Date().toISOString()
+                          }));
+                        }
+                        console.log(`📅 年份过滤选择: ${event.target.value}`);
+                      }}
                     >
                       <MenuItem value="all">{t.scatter.allYears}</MenuItem>
                       {/* 年次リストを動的に生成 */}
@@ -1731,7 +1886,21 @@ function App() {
                     <Select
                       value={selectedCycleFilter}
                       label={t.scatter.cycleFilter}
-                      onChange={(event) => setSelectedCycleFilter(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedCycleFilter(event.target.value);
+                        // --- 周期过滤ログをWebSocketで送信 ---
+                        if (wsLogRef.current && wsLogRef.current.readyState === WebSocket.OPEN) {
+                          wsLogRef.current.send(JSON.stringify({
+                            user_name: userName,
+                            mode: chartPredictMode,
+                            type: "CycleFilter",
+                            name: event.target.value,
+                            cycle: currentCycle,
+                            timestamp: new Date().toISOString()
+                          }));
+                        }
+                        console.log(`🔄 周期过滤选择: ${event.target.value}`);
+                      }}
                     >
                       <MenuItem value="all">{t.scatter.allCycles}</MenuItem>
                       {/* サイクル番号リストを動的に生成 */}
@@ -1745,7 +1914,21 @@ function App() {
                     <Select
                       value={selectedHistorySort}
                       label={t.scatter.historySort}
-                      onChange={(event) => setSelectedHistorySort(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedHistorySort(event.target.value);
+                        // --- 历史排序ログをWebSocketで送信 ---
+                        if (wsLogRef.current && wsLogRef.current.readyState === WebSocket.OPEN) {
+                          wsLogRef.current.send(JSON.stringify({
+                            user_name: userName,
+                            mode: chartPredictMode,
+                            type: "HistorySort",
+                            name: event.target.value,
+                            cycle: currentCycle,
+                            timestamp: new Date().toISOString()
+                          }));
+                        }
+                        console.log(`📊 历史排序选择: ${event.target.value}`);
+                      }}
                     >
                       <MenuItem value="cycle">{t.scatter.sortByCycle}</MenuItem>
                       <MenuItem value="year">{t.scatter.sortByYear}</MenuItem>
@@ -2246,4 +2429,4 @@ function App() {
   );
 }
 
-export default App;
+export default AppRouter;

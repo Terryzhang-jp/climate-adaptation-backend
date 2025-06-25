@@ -123,8 +123,8 @@ def run_simulation(req: SimulationRequest):
             df_sim["Simulation"] = sim_index
             return df_sim
 
-        # 使用所有可用CPU核心进行并行计算
-        max_workers = min(multiprocessing.cpu_count(), req.num_simulations)
+        # Railway 8vCPU优化：充分利用CPU资源支持15用户并发
+        max_workers = min(6, multiprocessing.cpu_count(), req.num_simulations)
         print(f"🚀 [Monte Carlo] 使用 {max_workers} 个CPU核心并行计算 {req.num_simulations} 次仿真")
 
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -136,6 +136,11 @@ def run_simulation(req: SimulationRequest):
         all_df = pd.concat(results, ignore_index=True)
         block_scores = []
         print(f"✅ [Monte Carlo] 并行计算完成，共处理 {len(all_df)} 行数据")
+
+        # 清理内存以避免资源过载
+        import gc
+        del results
+        gc.collect()
 
     elif mode == "Sequential Decision-Making Mode":
         sim_years = np.arange(req.decision_vars[0].year, req.decision_vars[0].year + 1)
@@ -443,6 +448,82 @@ async def receive_batch_logs(request: dict):
         print(f"❌ [API] 批量log接收失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save logs: {str(e)}")
 
+
+# 结束实验API端点
+@app.post("/experiment/end")
+async def end_experiment(request: dict):
+    """处理实验结束请求"""
+    try:
+        user_name = request.get("user_name")
+        logs = request.get("logs", [])
+
+        if not user_name:
+            raise HTTPException(status_code=400, detail="User name is required")
+
+        log_path = Path(__file__).parent / "data" / "user_log.jsonl"
+        log_path.parent.mkdir(exist_ok=True)
+
+        # 写入结束实验的日志
+        end_log = {
+            "type": "ExperimentEnd",
+            "user_name": user_name,
+            "timestamp": datetime.now().isoformat(),
+            "total_logs": len(logs)
+        }
+
+        with open(log_path, "a", encoding="utf-8") as f:
+            # 写入所有用户行为日志
+            for log_entry in logs:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+            # 写入实验结束标记
+            f.write(json.dumps(end_log, ensure_ascii=False) + "\n")
+
+        print(f"✅ [Experiment End] 用户 {user_name} 实验结束，保存 {len(logs)} 条日志")
+
+        return {
+            "status": "success",
+            "message": f"Experiment ended for user {user_name}",
+            "logs_saved": len(logs)
+        }
+
+    except Exception as e:
+        print(f"❌ [Experiment End] 处理失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to end experiment: {str(e)}")
+
+# 获取用户日志API端点
+@app.get("/user-logs/{user_name}")
+async def get_user_logs(user_name: str):
+    """获取指定用户的所有日志数据"""
+    try:
+        log_path = Path(__file__).parent / "data" / "user_log.jsonl"
+
+        if not log_path.exists():
+            return {"logs": [], "message": "No logs found"}
+
+        user_logs = []
+        with open(log_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        log = json.loads(line.strip())
+                        if log.get('user_name') == user_name:
+                            user_logs.append(log)
+                    except json.JSONDecodeError:
+                        continue
+
+        print(f"✅ [User Logs] 获取用户 {user_name} 的日志: {len(user_logs)} 条")
+
+        return {
+            "user_name": user_name,
+            "logs": user_logs,
+            "total_count": len(user_logs)
+        }
+
+    except Exception as e:
+        print(f"❌ [User Logs] 获取失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user logs: {str(e)}")
+
+
 # 管理员路由
 @app.get("/admin/dashboard")
 async def get_admin_dashboard(admin: str = Depends(authenticate_admin)):
@@ -499,6 +580,184 @@ async def get_admin_dashboard(admin: str = Depends(authenticate_admin)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"データの取得に失敗しました: {str(e)}")
+
+@app.get("/admin/data-files")
+async def list_data_files(admin: str = Depends(authenticate_admin)):
+    """获取data文件夹下所有文件的列表和信息"""
+    try:
+        data_dir = Path(__file__).parent / "data"
+        files_info = []
+
+        if data_dir.exists():
+            for file_path in data_dir.iterdir():
+                if file_path.is_file():
+                    stat = file_path.stat()
+                    files_info.append({
+                        "name": file_path.name,
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "type": file_path.suffix.lower()
+                    })
+
+        return {"files": files_info}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ファイルリストの取得に失敗しました: {str(e)}")
+
+@app.get("/admin/preview-file/{filename}")
+async def preview_file_content(filename: str, admin: str = Depends(authenticate_admin)):
+    """ファイル内容をプレビュー用に取得"""
+    try:
+        data_dir = Path(__file__).parent / "data"
+        file_path = data_dir / filename
+
+        print(f"Preview request for file: {filename}")
+        print(f"File path: {file_path}")
+        print(f"File exists: {file_path.exists()}")
+
+        # セキュリティチェック
+        if not file_path.resolve().is_relative_to(data_dir.resolve()):
+            raise HTTPException(status_code=400, detail="無効なファイルパスです")
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+
+        file_extension = file_path.suffix.lower()
+        print(f"File extension: {file_extension}")
+
+        # ファイルサイズチェック（大きすぎる場合は制限）
+        max_size = 5 * 1024 * 1024  # 5MB
+        file_size = file_path.stat().st_size
+        print(f"File size: {file_size}")
+
+        if file_size > max_size:
+            return {
+                "filename": filename,
+                "type": "error",
+                "message": "ファイルサイズが大きすぎます（5MB以上）",
+                "data": []
+            }
+
+        try:
+            if file_extension in ['.csv']:
+                # CSV ファイルの処理
+                print(f"Processing CSV file: {filename}")
+                try:
+                    df = pd.read_csv(file_path, encoding='utf-8')
+                except UnicodeDecodeError:
+                    df = pd.read_csv(file_path, encoding='shift_jis')
+
+                print(f"CSV loaded successfully. Shape: {df.shape}")
+                print(f"Columns: {df.columns.tolist()}")
+
+                return {
+                    "filename": filename,
+                    "type": "table",
+                    "columns": df.columns.tolist(),
+                    "data": df.head(100).fillna('').to_dict('records'),  # 最初の100行のみ、NaNを空文字に
+                    "total_rows": len(df)
+                }
+
+            elif file_extension in ['.tsv']:
+                # TSV ファイルの処理
+                print(f"Processing TSV file: {filename}")
+                try:
+                    df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
+                except UnicodeDecodeError:
+                    df = pd.read_csv(file_path, sep='\t', encoding='shift_jis')
+
+                print(f"TSV loaded successfully. Shape: {df.shape}")
+                print(f"Columns: {df.columns.tolist()}")
+
+                return {
+                    "filename": filename,
+                    "type": "table",
+                    "columns": df.columns.tolist(),
+                    "data": df.head(100).fillna('').to_dict('records'),
+                    "total_rows": len(df)
+                }
+
+            elif file_extension in ['.jsonl']:
+                # JSONL ファイルの処理
+                import json
+                lines = []
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for i, line in enumerate(f):
+                        if i >= 100:  # 最初の100行のみ
+                            break
+                        if line.strip():
+                            try:
+                                lines.append(json.loads(line.strip()))
+                            except json.JSONDecodeError:
+                                continue
+
+                # 総行数を取得
+                total_lines = sum(1 for line in open(file_path, 'r', encoding='utf-8') if line.strip())
+
+                return {
+                    "filename": filename,
+                    "type": "json",
+                    "data": lines,
+                    "total_rows": total_lines
+                }
+
+            else:
+                # その他のテキストファイル
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read(10000)  # 最初の10KB
+
+                return {
+                    "filename": filename,
+                    "type": "text",
+                    "data": content,
+                    "total_size": file_path.stat().st_size
+                }
+
+        except Exception as parse_error:
+            # ファイル解析エラーの場合、生テキストとして表示
+            print(f"Parse error for {filename}: {str(parse_error)}")
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read(10000)
+            except Exception as read_error:
+                print(f"Read error for {filename}: {str(read_error)}")
+                content = f"ファイル読み込みエラー: {str(read_error)}"
+
+            return {
+                "filename": filename,
+                "type": "text",
+                "data": content,
+                "error": f"解析エラー: {str(parse_error)}"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"General error for {filename}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"ファイルプレビューに失敗しました: {str(e)}")
+
+@app.get("/admin/download/file/{filename}")
+async def download_single_file(filename: str, admin: str = Depends(authenticate_admin)):
+    """指定されたファイルをダウンロード"""
+    try:
+        data_dir = Path(__file__).parent / "data"
+        file_path = data_dir / filename
+
+        # セキュリティチェック：パストラバーサル攻撃を防ぐ
+        if not file_path.resolve().is_relative_to(data_dir.resolve()):
+            raise HTTPException(status_code=400, detail="無効なファイルパスです")
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type="application/octet-stream"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ファイルのダウンロードに失敗しました: {str(e)}")
 
 @app.get("/admin/download/all")
 async def download_all_data(admin: str = Depends(authenticate_admin)):

@@ -1,213 +1,723 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理者コンソール - 気候適応シミュレーション</title>
-    <link rel="stylesheet" href="admin_style.css">
-    <!-- 全局配置文件 -->
-    <script src="../config/app-config.js"></script>
+    <title>管理者ダッシュボード</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .stat { background: #f0f0f0; padding: 20px; margin: 10px; border-radius: 5px; }
+        .error { color: red; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .file-list { margin: 20px 0; }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .file-info { flex-grow: 1; }
+        .file-name { font-weight: bold; }
+        .file-details { font-size: 0.9em; color: #666; }
+        .download-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .download-btn:hover { background: #218838; }
+        .download-all-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .download-all-btn:hover { background: #0056b3; }
+        .clear-data-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        .clear-data-btn:hover { background: #c82333; }
+        .preview-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .preview-btn:hover { background: #138496; }
+
+        /* モーダルスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: black; }
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .preview-table th,
+        .preview-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .preview-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .json-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .text-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* ログインスタイル */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .login-input {
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .login-error {
+            color: #dc3545;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .admin-content {
+            display: none;
+        }
+
+        .logout-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .logout-btn:hover {
+            background: #5a6268;
+        }
+    </style>
 </head>
 <body>
-    <div class="admin-container">
-        <!-- 認証画面 -->
-        <div id="auth-section" class="auth-section">
-            <div class="auth-card">
-                <h1>🔐 管理者認証</h1>
-                <p>システムデータにアクセスするため、管理者認証情報を入力してください</p>
-                <form id="auth-form">
-                    <div class="form-group">
-                        <label for="username">ユーザー名:</label>
-                        <input type="text" id="username" name="username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">パスワード:</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="auth-btn">ログイン</button>
-                </form>
-                <div id="auth-error" class="error-message"></div>
-            </div>
+    <!-- ログイン画面 -->
+    <div id="login-container" class="login-container">
+        <div class="login-box">
+            <h1 class="login-title">🔐 管理者ログイン</h1>
+            <form class="login-form" onsubmit="handleLogin(event)">
+                <input
+                    type="text"
+                    id="username"
+                    class="login-input"
+                    placeholder="ユーザー名"
+                    required
+                    autocomplete="username"
+                >
+                <input
+                    type="password"
+                    id="password"
+                    class="login-input"
+                    placeholder="パスワード"
+                    required
+                    autocomplete="current-password"
+                >
+                <button type="submit" class="login-btn">ログイン</button>
+                <div id="login-error" class="login-error"></div>
+            </form>
         </div>
+    </div>
 
-        <!-- 管理者ダッシュボード -->
-        <div id="dashboard-section" class="dashboard-section" style="display: none;">
-            <header class="dashboard-header">
-                <h1>📊 気候適応シミュレーション - 管理者コンソール</h1>
-                <div class="header-actions">
-                    <span id="last-update">最終更新: --</span>
-                    <button id="refresh-btn" class="action-btn">🔄 更新</button>
-                    <button id="logout-btn" class="action-btn logout">🚪 ログアウト</button>
-                </div>
-            </header>
-
-            <!-- 統計概要 -->
-            <section class="stats-overview">
-                <div class="stat-card">
-                    <div class="stat-icon">👥</div>
-                    <div class="stat-content">
-                        <div class="stat-number" id="total-users">--</div>
-                        <div class="stat-label">総ユーザー数</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📝</div>
-                    <div class="stat-content">
-                        <div class="stat-number" id="total-logs">--</div>
-                        <div class="stat-label">操作ログ</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">🎯</div>
-                    <div class="stat-content">
-                        <div class="stat-number" id="total-simulations">--</div>
-                        <div class="stat-label">シミュレーション記録</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⏰</div>
-                    <div class="stat-content">
-                        <div class="stat-number" id="last-activity">--</div>
-                        <div class="stat-label">最終活動</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- クイックアクション -->
-            <section class="quick-actions">
-                <h2>📥 データダウンロード</h2>
-                <div class="action-grid">
-                    <button id="download-all-btn" class="download-btn">
-                        <span class="btn-icon">📦</span>
-                        <span class="btn-text">全データダウンロード</span>
-                        <span class="btn-desc">全ユーザーデータとログを含むZIPファイル</span>
-                    </button>
-                    <button id="download-logs-btn" class="download-btn">
-                        <span class="btn-icon">📋</span>
-                        <span class="btn-text">ユーザーログダウンロード</span>
-                        <span class="btn-desc">ユーザー操作ログファイル (JSONL)</span>
-                    </button>
-                    <button id="download-scores-btn" class="download-btn">
-                        <span class="btn-icon">🏆</span>
-                        <span class="btn-text">評価データダウンロード</span>
-                        <span class="btn-desc">シミュレーション結果と評価データ (TSV)</span>
-                    </button>
-                </div>
-            </section>
-
-            <!-- データ管理セクション -->
-            <section class="data-management">
-                <h2>🗂️ データ管理</h2>
-                <div class="management-grid">
-                    <div class="management-card danger-zone">
-                        <div class="card-header">
-                            <span class="card-icon">🧹</span>
-                            <h3>データクリア</h3>
-                        </div>
-                        <div class="card-content">
-                            <p>システム内の全データを削除します。この操作は取り消せません。</p>
-                            <div class="warning-box">
-                                <span class="warning-icon">⚠️</span>
-                                <span>実行前に必ずデータをダウンロードしてください</span>
-                            </div>
-                            <button id="clear-data-btn" class="danger-btn">
-                                <span class="btn-icon">🗑️</span>
-                                <span class="btn-text">全データクリア</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ユーザーリスト -->
-            <section class="users-section">
-                <h2>👥 ユーザーリスト</h2>
-                <div class="users-grid" id="users-grid">
-                    <!-- ユーザーカードはJavaScriptで動的に生成されます -->
-                </div>
-            </section>
-
-            <!-- 最近のアクティビティ -->
-            <section class="activity-section">
-                <h2>📈 最近のアクティビティ</h2>
-                <div class="activity-list" id="activity-list">
-                    <!-- アクティビティ記録はJavaScriptで動的に生成されます -->
-                </div>
-            </section>
-
-            <!-- ユーザー詳細モーダル -->
-            <div id="user-modal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 id="modal-user-name">ユーザー詳細</h3>
-                        <span class="close">&times;</span>
-                    </div>
-                    <div class="modal-body" id="modal-body">
-                        <!-- ユーザー詳細内容 -->
-                    </div>
+    <!-- 管理者ダッシュボード -->
+    <div id="admin-content" class="admin-content">
+        <div class="container">
+            <div class="header">
+                <h1>🔧 管理者ダッシュボード</h1>
+                <div>
+                    <button class="refresh-btn" onclick="loadData()">🔄 データを更新</button>
+                    <button class="logout-btn" onclick="logout()">🚪 ログアウト</button>
                 </div>
             </div>
 
-            <!-- データクリア確認モーダル -->
-            <div id="clear-confirm-modal" class="modal">
-                <div class="modal-content confirm-modal">
-                    <div class="modal-header">
-                        <h3>🗑️ データクリア確認</h3>
-                        <span class="close" id="clear-modal-close">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="confirm-content">
-                            <div class="warning-section">
-                                <div class="warning-icon-large">⚠️</div>
-                                <h4>この操作は取り消せません</h4>
-                                <p>以下のデータが完全に削除されます：</p>
-                            </div>
-
-                            <div class="stats-section" id="clear-stats">
-                                <!-- 統計情報がJavaScriptで動的に挿入されます -->
-                            </div>
-
-                            <div class="confirmation-section">
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="confirm-backup">
-                                        <span class="checkmark"></span>
-                                        データのバックアップを取得済みです
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="confirm-understand">
-                                        <span class="checkmark"></span>
-                                        この操作が取り消せないことを理解しています
-                                    </label>
-                                </div>
-
-                                <div class="final-confirmation">
-                                    <p><strong>実行するには「DELETE」と入力してください：</strong></p>
-                                    <input type="text" id="delete-confirmation" placeholder="DELETE" maxlength="6">
-                                </div>
-                            </div>
-
-                            <div class="modal-actions">
-                                <button id="cancel-clear-btn" class="cancel-btn">キャンセル</button>
-                                <button id="execute-clear-btn" class="danger-btn" disabled>
-                                    <span class="btn-icon">🗑️</span>
-                                    データを削除する
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-users">--</div>
+                    <div class="stat-label">ユーザー数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-logs">--</div>
+                    <div class="stat-label">ログ数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-scores">--</div>
+                    <div class="stat-label">評価数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-decisions">--</div>
+                    <div class="stat-label">決定数</div>
                 </div>
             </div>
 
-            <!-- ローディングインジケーター -->
-            <div id="loading" class="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p>データを読み込み中...</p>
+            <div class="data-section">
+                <h3>👥 ユーザーリスト</h3>
+                <div id="users-container" class="loading">読み込み中...</div>
+            </div>
+
+            <div class="data-section">
+                <h3>🔍 最新ログ</h3>
+                <div id="logs-container" class="loading">読み込み中...</div>
+            </div>
+
+            <div class="data-section">
+                <h3>📁 データファイル</h3>
+                <button class="download-all-btn" onclick="downloadAllData()">📦 全データをダウンロード</button>
+                <button class="clear-data-btn" onclick="clearAllData()">🗑️ 全データを消去</button>
+                <div id="files-data">読み込み中...</div>
             </div>
         </div>
     </div>
 
-    <script src="config.js"></script>
-    <script src="admin_script.js"></script>
+    <!-- プレビューモーダル -->
+    <div id="previewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">ファイルプレビュー</h3>
+                <span class="close" onclick="closePreviewModal()">&times;</span>
+            </div>
+            <div id="modalBody">
+                <!-- プレビュー内容がここに表示される -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const BACKEND_URL = "https://web-production-5fb04.up.railway.app";
+        let authCredentials = null;
+
+        // ページ読み込み時は常にログイン画面を表示
+        window.addEventListener('load', function() {
+            // セキュリティのため、毎回ログインが必要
+            clearStoredCredentials();
+            showLoginForm();
+        });
+
+        function clearStoredCredentials() {
+            // 既存の認証情報をクリア
+            authCredentials = null;
+            localStorage.removeItem('adminCredentials');
+        }
+
+        function showLoginForm() {
+            document.getElementById('login-container').style.display = 'flex';
+            document.getElementById('admin-content').style.display = 'none';
+        }
+
+        function showAdminContent() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('admin-content').style.display = 'block';
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('login-error');
+
+            // 認証情報をチェック
+            if (username === 'admin' && password === 'climate2025') {
+                // 認証成功（セッション中のみ有効、localStorage保存なし）
+                authCredentials = btoa(`${username}:${password}`);
+
+                errorDiv.style.display = 'none';
+                showAdminContent();
+
+                // DOM要素が確実に表示されるまで少し待つ
+                setTimeout(() => {
+                    loadData();
+                }, 100);
+            } else {
+                // 認証失敗
+                errorDiv.textContent = 'ユーザー名またはパスワードが正しくありません';
+                errorDiv.style.display = 'block';
+
+                // パスワードフィールドをクリア
+                document.getElementById('password').value = '';
+            }
+        }
+
+        function logout() {
+            if (confirm('ログアウトしますか？')) {
+                // 認証情報をクリア
+                authCredentials = null;
+                showLoginForm();
+
+                // フォームをクリア
+                document.getElementById('username').value = '';
+                document.getElementById('password').value = '';
+            }
+        }
+
+        async function loadData() {
+            if (!authCredentials) {
+                alert('認証が必要です。再度ログインしてください。');
+                showLoginForm();
+                return;
+            }
+            console.log("データ読み込み開始...");
+
+            try {
+                // 管理者ダッシュボードデータを取得
+                try {
+                    const dashboardResponse = await fetch(`${BACKEND_URL}/admin/dashboard`, {
+                        headers: {
+                            'Authorization': 'Basic ' + authCredentials
+                        }
+                    });
+
+                    if (dashboardResponse.ok) {
+                        const dashboardData = await dashboardResponse.json();
+                        console.log("ダッシュボードデータ:", dashboardData);
+
+                        // 統計情報を更新
+                        document.getElementById("total-users").textContent = dashboardData.summary?.total_users || 0;
+                        document.getElementById("total-logs").textContent = dashboardData.summary?.total_logs || 0;
+                        document.getElementById("total-scores").textContent = dashboardData.summary?.total_simulations || 0;
+                        document.getElementById("total-decisions").textContent = "N/A";
+
+                        // ユーザーリストを表示
+                        if (dashboardData.users && Array.isArray(dashboardData.users)) {
+                            let usersHtml = "<ul>";
+                            dashboardData.users.forEach(user => {
+                                usersHtml += `<li>${user}</li>`;
+                            });
+                            usersHtml += "</ul>";
+                            document.getElementById("users-container").innerHTML = usersHtml;
+                        } else {
+                            document.getElementById("users-container").innerHTML = "<p>ユーザーデータなし</p>";
+                        }
+
+                        // 最新アクティビティを表示
+                        if (dashboardData.recent_activity && Array.isArray(dashboardData.recent_activity)) {
+                            let logsHtml = "<table><tr><th>ユーザー</th><th>タイプ</th><th>時間</th></tr>";
+                            dashboardData.recent_activity.slice(0, 10).forEach(log => {
+                                logsHtml += `<tr><td>${log.user_name || 'N/A'}</td><td>${log.type || 'N/A'}</td><td>${log.timestamp || 'N/A'}</td></tr>`;
+                            });
+                            logsHtml += "</table>";
+                            document.getElementById("logs-container").innerHTML = logsHtml;
+                        } else {
+                            document.getElementById("logs-container").innerHTML = "<p>ログデータなし</p>";
+                        }
+
+                    } else {
+                        throw new Error(`ダッシュボードAPI エラー: ${dashboardResponse.status}`);
+                    }
+                } catch (error) {
+                    console.error("ダッシュボードデータ読み込み失敗:", error);
+                    document.getElementById("total-users").textContent = "0";
+                    document.getElementById("users-container").innerHTML = `<div class="error">データ読み込み失敗: ${error.message}</div>`;
+                    document.getElementById("logs-container").innerHTML = `<div class="error">データ読み込み失敗: ${error.message}</div>`;
+                }
+
+                // データファイルリストを取得
+                await loadDataFiles();
+
+                console.log("データ読み込み完了");
+
+            } catch (error) {
+                console.error("全体読み込み失敗:", error);
+            }
+        }
+
+        async function loadDataFiles() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/admin/data-files`, {
+                    headers: {
+                        'Authorization': 'Basic ' + authCredentials
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log("ファイルデータ:", data);
+
+                    if (data.files && Array.isArray(data.files)) {
+                        let filesHtml = '<div class="file-list">';
+                        data.files.forEach(file => {
+                            const fileSize = formatFileSize(file.size);
+                            const modifiedDate = new Date(file.modified).toLocaleString('ja-JP');
+
+                            filesHtml += `
+                                <div class="file-item">
+                                    <div class="file-info">
+                                        <div class="file-name">${file.name}</div>
+                                        <div class="file-details">サイズ: ${fileSize} | 更新: ${modifiedDate}</div>
+                                    </div>
+                                    <div>
+                                        <button class="preview-btn" onclick="previewFile('${file.name}')">
+                                            👁️ プレビュー
+                                        </button>
+                                        <button class="download-btn" onclick="downloadFile('${file.name}')">
+                                            📥 ダウンロード
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        filesHtml += '</div>';
+                        document.getElementById("files-data").innerHTML = filesHtml;
+                    } else {
+                        document.getElementById("files-data").innerHTML = "<p>ファイルが見つかりません</p>";
+                    }
+                } else {
+                    throw new Error(`ファイルリストAPI エラー: ${response.status}`);
+                }
+            } catch (error) {
+                console.error("ファイルリスト読み込み失敗:", error);
+                document.getElementById("files-data").innerHTML = `<div class="error">ファイルリスト読み込み失敗: ${error.message}</div>`;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function downloadFile(filename) {
+            if (!authCredentials) {
+                alert('認証が必要です。再度ログインしてください。');
+                showLoginForm();
+                return;
+            }
+
+            const url = `${BACKEND_URL}/admin/download/file/${filename}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+
+            // Basic認証のヘッダーを設定
+            fetch(url, {
+                headers: {
+                    'Authorization': 'Basic ' + authCredentials
+                }
+            }).then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error(`ダウンロード失敗: ${response.status}`);
+                }
+            }).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }).catch(error => {
+                console.error('ダウンロードエラー:', error);
+                alert(`ファイルのダウンロードに失敗しました: ${error.message}`);
+            });
+        }
+
+        function downloadAllData() {
+            if (!authCredentials) {
+                alert('認証が必要です。再度ログインしてください。');
+                showLoginForm();
+                return;
+            }
+
+            const url = `${BACKEND_URL}/admin/download/all`;
+
+            fetch(url, {
+                headers: {
+                    'Authorization': 'Basic ' + authCredentials
+                }
+            }).then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    throw new Error(`ダウンロード失敗: ${response.status}`);
+                }
+            }).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `climate_simulation_data_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }).catch(error => {
+                console.error('全データダウンロードエラー:', error);
+                alert(`全データのダウンロードに失敗しました: ${error.message}`);
+            });
+        }
+
+        function previewFile(filename) {
+            if (!authCredentials) {
+                alert('認証が必要です。再度ログインしてください。');
+                showLoginForm();
+                return;
+            }
+
+            const url = `${BACKEND_URL}/admin/preview-file/${filename}`;
+
+            fetch(url, {
+                headers: {
+                    'Authorization': 'Basic ' + authCredentials
+                }
+            }).then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error(`プレビュー失敗: ${response.status}`);
+                }
+            }).then(data => {
+                showPreviewModal(data);
+            }).catch(error => {
+                console.error('プレビューエラー:', error);
+                alert(`ファイルプレビューに失敗しました: ${error.message}`);
+            });
+        }
+
+        function showPreviewModal(data) {
+            const modal = document.getElementById('previewModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = `${data.filename} - プレビュー`;
+
+            let content = '';
+
+            if (data.type === 'table') {
+                // テーブル形式で表示
+                content = `
+                    <p><strong>総行数:</strong> ${data.total_rows} 行 (最初の100行を表示)</p>
+                    <div style="overflow-x: auto;">
+                        <table class="preview-table">
+                            <thead>
+                                <tr>
+                                    ${data.columns.map(col => `<th>${col}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.data.map(row => `
+                                    <tr>
+                                        ${data.columns.map(col => `<td title="${row[col] || ''}">${row[col] || ''}</td>`).join('')}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else if (data.type === 'json') {
+                // JSON形式で表示
+                content = `
+                    <p><strong>総行数:</strong> ${data.total_rows} 行 (最初の100行を表示)</p>
+                    <div class="json-preview">${JSON.stringify(data.data, null, 2)}</div>
+                `;
+            } else if (data.type === 'text') {
+                // テキスト形式で表示
+                content = `
+                    <p><strong>ファイルサイズ:</strong> ${data.total_size ? formatFileSize(data.total_size) : 'N/A'}</p>
+                    ${data.error ? `<p style="color: red;"><strong>注意:</strong> ${data.error}</p>` : ''}
+                    <div class="text-preview">${data.data}</div>
+                `;
+            } else if (data.type === 'error') {
+                // エラー表示
+                content = `
+                    <p style="color: red;"><strong>エラー:</strong> ${data.message}</p>
+                `;
+            }
+
+            modalBody.innerHTML = content;
+            modal.style.display = 'block';
+        }
+
+        function closePreviewModal() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        function clearAllData() {
+            if (!authCredentials) {
+                alert('認証が必要です。再度ログインしてください。');
+                showLoginForm();
+                return;
+            }
+
+            if (!confirm('⚠️ 警告: 全てのデータファイルの内容が消去されます。\n\nファイル自体は残りますが、中身は空になります。\nテストデータの削除などに使用してください。\n\nこの操作は元に戻せません。続行しますか？')) {
+                return;
+            }
+
+            if (!confirm('本当に実行しますか？この操作は取り消せません。')) {
+                return;
+            }
+
+            const url = `${BACKEND_URL}/admin/clear-data`;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Basic ' + authCredentials,
+                    'Content-Type': 'application/json'
+                }
+            }).then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error(`データ消去失敗: ${response.status}`);
+                }
+            }).then(result => {
+                alert(`データ消去完了！\n\n処理ファイル数: ${result.total_files_processed}\n成功: ${result.successful_clears}\nエラー: ${result.errors ? result.errors.length : 0}`);
+                // データを再読み込み
+                loadData();
+            }).catch(error => {
+                console.error('データ消去エラー:', error);
+                alert(`データ消去に失敗しました: ${error.message}`);
+            });
+        }
+
+        // モーダルの外側をクリックしたら閉じる
+        window.onclick = function(event) {
+            const modal = document.getElementById('previewModal');
+            if (event.target === modal) {
+                closePreviewModal();
+            }
+        }
+
+        // ページ読み込み時の処理は checkLoginStatus() で行う
+    </script>
 </body>
 </html>
